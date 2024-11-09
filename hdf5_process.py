@@ -219,13 +219,14 @@ def create_action_vector(frame_data):
     ])
 
 def process_single_replay_to_hdf5(h5file, replay_id, frame_folder, json_path):
+    avi_path = os.path.join(frame_folder, "framedump0.avi")
+    if not os.path.exists(avi_path):
+        print(f"Skipping replay {replay_id}: No AVI file found")
+        return False
+    
     replay_group = h5file.create_group(f"replay_{replay_id}")
     
     p1_frames, p2_frames, target_frames = read_game_data(json_path)
-    
-    avi_path = os.path.join(frame_folder, "framedump0.avi")
-    if not os.path.exists(avi_path):
-        raise FileNotFoundError(f"No AVI file found at {avi_path}")
     
     frames = extract_frames(avi_path, target_frames)
     max_frames = min(len(frames), len(p1_frames))
@@ -246,26 +247,31 @@ def process_single_replay_to_hdf5(h5file, replay_id, frame_folder, json_path):
     replay_group.attrs['frame_width'] = 96
     replay_group.attrs['frame_height'] = 72
 
+    return True  # Indicate successful processing
+
 def create_dataset_hdf5(replay_configs, output_path):    
     with h5py.File(output_path, 'w') as f:
-        f.attrs['num_replays'] = len(replay_configs)
         f.attrs['frame_width'] = 96
         f.attrs['frame_height'] = 72
         f.attrs['action_dims'] = 80
+        successful_replays = 0
 
         for config in tqdm(replay_configs, desc="Creating dataset"):
             frame_folder = os.path.join(FRAME_DUMP_PATH, f"frames_{config['replay_id']}")
             
             try:
-                process_single_replay_to_hdf5(
+                if process_single_replay_to_hdf5(
                     f,
                     config['replay_id'],
                     frame_folder,
                     config['json_path']
-                )
+                ):
+                    successful_replays += 1
             except Exception as e:
                 print(f"Error processing replay {config['replay_id']}: {e}")
                 continue
+
+        f.attrs['num_replays'] = successful_replays
 
 def batch_record_replays(replay_configs, max_concurrent_recordings):
     task_queue = Queue()
