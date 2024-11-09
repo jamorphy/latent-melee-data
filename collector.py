@@ -32,6 +32,7 @@ def main():
         replay_configs = process_replay_folder(args.replays_folder)
         
         if args.max_dolphin_workers:
+            print(f"Recording {len(replay_configs)} replays with {args.max_dolphin_workers} concurrent workers")
             batch_record_replays(replay_configs, max_concurrent_recordings=args.max_dolphin_workers)
         
         if args.dataset_path:
