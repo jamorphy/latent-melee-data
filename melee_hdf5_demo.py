@@ -150,7 +150,7 @@ class FrameTimer:
             return current_fps
         return self.target_fps
 
-def view_frames(filepath, target_fps=60):
+def view_frames(filepath, replay_idx=0, target_fps=60):
     cv2.namedWindow('Game View', cv2.WINDOW_NORMAL)
     cv2.namedWindow('P1 Inputs', cv2.WINDOW_NORMAL)
     cv2.namedWindow('P2 Inputs', cv2.WINDOW_NORMAL)
@@ -158,39 +158,50 @@ def view_frames(filepath, target_fps=60):
     timer = FrameTimer(target_fps)
     
     with h5py.File(filepath, 'r') as f:
-        metadata = get_metadata(f)
+        # Get list of available replays
+        replay_keys = [k for k in f.keys() if k.startswith('replay_')]
+        if not replay_keys:
+            print("No replays found in dataset!")
+            return
+            
+        if replay_idx >= len(replay_keys):
+            print(f"Replay index {replay_idx} out of range. Max index: {len(replay_keys)-1}")
+            return
+            
+        # Get the specified replay
+        replay = f[replay_keys[replay_idx]]
+        frames = replay['frames']
+        p1_inputs = replay['p1_inputs']
+        p2_inputs = replay['p2_inputs']
+        
+        total_frames = len(frames)
+        resolution = f'{frames.shape[2]}x{frames.shape[1]}'
+        
         print(f"Dataset Info:")
-        print(f"Resolution: {metadata['resolution']}")
-        print(f"Total Frames: {metadata['total_frames']}")
+        print(f"Resolution: {resolution}")
+        print(f"Total Frames: {total_frames}")
+        print(f"Playing replay: {replay_keys[replay_idx]}")
         
         frame_idx = 0
-        
-        while frame_idx < metadata['total_frames']:
-            # Get frame data
-            frame_key = f'frame_{frame_idx}_x'
-            p1_action_key = f'frame_{frame_idx}_p1_y'
-            p2_action_key = f'frame_{frame_idx}_p2_y'
-            
+        while frame_idx < total_frames:
             # Load and display frame
-            frame = f[frame_key][:]
+            frame = frames[frame_idx]
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.imshow('Game View', frame)
             
             # Load and display P1 actions
-            p1_action_vector = f[p1_action_key][:]
-            p1_action = decode_melee_vector(p1_action_vector)
+            p1_action = decode_melee_vector(p1_inputs[frame_idx])
             current_fps = timer.wait_for_next_frame()
             p1_display = create_input_display(p1_action, player_num=1, fps=current_fps)
             cv2.imshow('P1 Inputs', p1_display)
             
             # Load and display P2 actions
-            p2_action_vector = f[p2_action_key][:]
-            p2_action = decode_melee_vector(p2_action_vector)
+            p2_action = decode_melee_vector(p2_inputs[frame_idx])
             p2_display = create_input_display(p2_action, player_num=2, fps=current_fps)
             cv2.imshow('P2 Inputs', p2_display)
             
             # Add progress indicator
-            progress = (frame_idx + 1) / metadata['total_frames'] * 100
+            progress = (frame_idx + 1) / total_frames * 100
             print(f"\rProgress: {progress:.1f}% (FPS: {current_fps:.1f})", end='')
             
             # Check for quit
@@ -205,5 +216,5 @@ def view_frames(filepath, target_fps=60):
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    file_path = "melee_data.hdf5"
-    view_frames(file_path)  # Default 60fps
+    dataset_path = r"C:\dummy\dummy_data.hdf5"
+    view_frames(dataset_path, replay_idx=2)
